@@ -1,6 +1,15 @@
 UNO_DECK_GUID = 'aa2acc'
-SCRIPTING_ZONE_GUID = '08f652'
+DECK_ZONE_GUID = '0d796b'
 NUMBER_OF_GAMES_PLAYED = 0
+
+-- todo improvements
+--
+-- 1. Game is broken if the deck runs out
+-- > Find a way to make a discard deck a new uno_deck if uno_deck is nil
+--
+-- 2. Decide a winner
+-- > Check player hands on every onObjectEnterScriptingZone, if there are no
+-- > more objects in any player hand call, announce the winner
 
 function onload()
     -- Greet players
@@ -9,6 +18,14 @@ function onload()
 
     -- Create the game start button
     createStartButton()
+    createRestartButton()
+    createDrawTwoButton()
+    createDrawFourButton()
+end
+
+function wait(seconds)
+  local start = os.time()
+  repeat until os.time() > start + seconds
 end
 
 -- function onObjectEnterScriptingZone(zone, enter_obj)
@@ -20,47 +37,102 @@ end
 --     end
 -- end
 
-function spawnStartButton()
-    local params = {}
-    params.type = 'FogOfWar'
-    params.position = {0, 1, 6}
-    params.scale = {1, 1, 1}
+function createDrawTwoButton()
+    draw_two_button = spawnObject({
+        type = 'FogOfWar',
+        position = {-5, -1, 6},
+        scale = {1, 1, 1}
+    })
 
-    return spawnObject(params)
+    draw_two_button.createButton({
+        click_function = 'drawTwo',
+        function_owner = nil,
+        label = 'Поднять 2',
+        position = {0, 0, 0, 0},
+        rotation = {0, 180, 0},
+        width = 2400,
+        height = 1000,
+        font_size = 500,
+        tooltip = 'Поднять две карты'
+    })
+end
+
+function createDrawFourButton()
+    draw_four_button = spawnObject({
+        type = 'FogOfWar',
+        position = {-5, -1, 4},
+        scale = {1, 1, 1}
+    })
+
+    draw_four_button.createButton({
+        click_function = 'drawFour',
+        function_owner = nil,
+        label = 'Поднять 4',
+        position = {0, 0, 0, 0},
+        rotation = {0, 180, 0},
+        width = 2400,
+        height = 1000,
+        font_size = 500,
+        tooltip = 'Поднять четыре карты'
+    })
 end
 
 function createStartButton()
-    spawned_start_button = spawnStartButton()
+    start_button = spawnObject({
+        type = 'FogOfWar',
+        position = {0, 1, 6},
+        scale = {1, 1, 1}
+    })
 
-    button_attributes = {}
-    button_attributes.click_function = 'startGame'
-    button_attributes.color = {r=0, g=1, b=1}
-    button_attributes.font_color = {r=1, g=1, b=1}
-    button_attributes.function_owner = nil
-    button_attributes.label = 'Let\'s go!'
-    button_attributes.position = {0, 0, 0, 0}
-    button_attributes.rotation = {0, 180, 0}
-    button_attributes.width = 2000
-    button_attributes.height = 2000
-    button_attributes.font_size = 500
-
-    spawned_start_button.createButton(button_attributes)
+    start_button.createButton({
+        click_function = 'startGame',
+        color = {r=0, g=1, b=1},
+        font_color = {r=1, g=1, b=1},
+        function_owner = nil,
+        label = 'Лэтс го!',
+        position = {0, 0, 0, 0},
+        rotation = {0, 180, 0},
+        width = 2000,
+        height = 1000,
+        font_size = 500,
+        tooltip = 'Начать игру'
+    })
 end
 
-function shuffleCardDeck(deck)
-    deck.shuffle()
+function createRestartButton()
+    restart_button = spawnObject({
+        type = 'FogOfWar',
+        position = {0, -1, 6},
+        scale = {1, 1, 1}
+    })
+
+    restart_button.createButton({
+        click_function = 'restartGame',
+        color = {r=0, g=1, b=1},
+        font_color = {r=1, g=1, b=1},
+        function_owner = nil,
+        label = 'Ещё одну!',
+        position = {0, 0, 0, 0},
+        rotation = {0, 180, 0},
+        width = 2000,
+        height = 1000,
+        font_size = 400,
+        tooltip = 'Рестарт игру'
+    })
 end
 
-function dealCardsToPlayers(deck)
-    deck.deal(7)
+function drawTwo(owner, click_color)
+    uno_deck.deal(2, click_color)
+    broadcastToAll(Player[click_color].steam_name .. " поднял 2 карты.")
+end
+
+function drawFour(owner, click_color)
+    uno_deck.deal(4, click_color)
+    broadcastToAll(Player[click_color].steam_name .. " поднял 4 карты.")
 end
 
 function moveDeckAway(deck)
     deck.setPositionSmooth({10, 2, 0, 0})
-end
-
-function resetDeckPosition(deck)
-    deck.setPositionSmooth({0, 3, 0, 0})
 end
 
 function getAllCurrentCardsInHand()
@@ -77,7 +149,7 @@ function getAllCurrentCardsInHand()
     return cards_in_hands
 end
 
-function collectAllPlayedCards(zone)
+function collectAllPlayedCards(deck, zone)
     objects_in_play = zone.getObjects()
 
     if next(objects_in_play) == nil then
@@ -86,8 +158,7 @@ function collectAllPlayedCards(zone)
     else
         for i, object in pairs(objects_in_play) do
             if (object.tag == 'Card') or (object.tag == 'Deck' and object.guid != 'aa2acc') then
-                object.destruct()
-                -- deck.putObject(card)
+                deck.putObject(object)
             end
         end
     end
@@ -101,53 +172,64 @@ function collectAllCardsInHands(deck)
         return
     else
         for i, card in pairs(cards_in_hands) do
-            -- card.flip()
             deck.putObject(card)
         end
     end
 end
 
-function startGame()
-    NUMBER_OF_GAMES_PLAYED = NUMBER_OF_GAMES_PLAYED + 1
+function restartGame()
     -- Clear the chat
     for i=1, 5 do
         print()
     end
-    print("Starting game number " .. NUMBER_OF_GAMES_PLAYED)
 
-    uno_deck = getObjectFromGUID(UNO_DECK_GUID)
-    scripting_zone = getObjectFromGUID(SCRIPTING_ZONE_GUID)
+    NUMBER_OF_GAMES_PLAYED = NUMBER_OF_GAMES_PLAYED + 1
+    print("Начинаем игру номер " .. NUMBER_OF_GAMES_PLAYED)
 
     printGameStartMessage()
 
-    if NUMBER_OF_GAMES_PLAYED == 1 then
-        moveDeckAway(uno_deck)
-    end
-    uno_deck.reset()
-    collectAllPlayedCards(scripting_zone)
-    -- collectAllCardsInHands(uno_deck)
+    -- Clean up the cards
+    collectAllPlayedCards(uno_deck, deck_zone)
+    collectAllCardsInHands(uno_deck)
 
-    -- Wait.time(function() collectAllPlayedCards(zone) end, 2)
-    dealCardsToPlayers(uno_deck)
-    -- shuffleCardDeck(uno_deck)
+    -- Delays are required to stop the cards stacking on top of the deck
+    -- very weird bug behaviour, funny though!
+    Wait.time(function() uno_deck.shuffle() end, 1)
+    Wait.time(function() uno_deck.deal(7) end, 1)
+end
+
+function startGame()
+    -- Shuffle the buttons around
+    start_button.setPosition({0, 100, 6, 0})
+    restart_button.setPosition({0, 1, 6, 0})
+    draw_two_button.setPosition({-5, 1, 6})
+    draw_four_button.setPosition({-5, 1, 4})
+
+    uno_deck = getObjectFromGUID(UNO_DECK_GUID)
+    deck_zone = getObjectFromGUID(DECK_ZONE_GUID)
+
+    printGameStartMessage()
+    uno_deck.deal(7)
 end
 
 function printWelcomeMessage()
-    print("Welcome to Simply UNO everyone! Let's get this party started...")
+    print("Добро пожаловать в Уно!")
 end
 
 function printGameStartMessage()
     random_game_start_msg = {
-        [1] = [["In war there is no prize for the runner-up."
-    — General Omar Bradley ]],
-        [2] = [["Never interrupt your enemy when he is making a mistake."
-    — Napoleon Bonaparte ]],
-        [3] = [["An eye for an eye makes the whole world blind."
-    — Gandhi]],
-        [4] = [["Death solves all problems - no man, no problem."
-    — Joseph Stalin ]],
-        [5] = [["Before you embark on a journey of revenge, you should first dig two graves."
-    — Confucius ]],
+        [1] = [["На войне нет приза за второе место."
+        — Генерал Омар Брэдли ]],
+        [2] = [["Никогда не перебивайте своего врага, когда он совершает ошибку."
+        — Наполеон Бонапарт ]],
+        [3] = [["Око за око делает весь мир слепым".
+        - Ганди]],
+        [4] = [["Если вы знаете врага и знаете себя, вам не нужно бояться результатов сотен сражений"
+        — Сунь Цзы ]],
+        [5] = [["Прежде чем отправиться в путь мести, тебе нужно сначала выкопать две могилы".
+        - Конфуций ]],
+        [6] = [["Один хороший акт мести заслуживает другого"
+        - Джон Джефферсон]]
     }
 
     greeting_random_ind = math.random(1, 5)
@@ -156,11 +238,11 @@ end
 
 function printPlayerGreetings()
     random_greetings = {
-        [1] = "Good to see you ",
-        [2] = "Celebrity sighting! What an honour to have you ",
-        [3] = "Oh no, it's ",
-        [4] = "Their Imperial Highness is here, all hail ",
-        [5] = "Oh hey there, ",
+        [1] = "Рады тебя видеть ",
+        [2] = "Знаменитость! Какая честь, что ты здесь ",
+        [3] = "О нет, это ",
+        [4] = "Их Императорское Высочество здесь, все приветствуют ",
+        [5] = "Не ожидали увидеть тебя здесь, привет ",
     }
     players = Player.getPlayers()
     greeting_random_ind = math.random(1, 5)
