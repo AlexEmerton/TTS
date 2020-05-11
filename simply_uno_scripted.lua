@@ -19,6 +19,7 @@ function onload()
     -- Create the game start button
     createStartButton()
     createRestartButton()
+    createDrawOneButton()
     createDrawTwoButton()
     createDrawFourButton()
 end
@@ -36,11 +37,30 @@ end
 --         end
 --     end
 -- end
+function createDrawOneButton()
+    draw_one_button = spawnObject({
+        type = 'FogOfWar',
+        position = {-5, -1, 6},
+        scale = {1, 1, 1}
+    })
+
+    draw_one_button.createButton({
+        click_function = 'drawOne',
+        function_owner = nil,
+        label = 'Поднять 1',
+        position = {0, 0, 0, 0},
+        rotation = {0, 180, 0},
+        width = 2400,
+        height = 1000,
+        font_size = 500,
+        tooltip = 'Поднять одну карту'
+    })
+end
 
 function createDrawTwoButton()
     draw_two_button = spawnObject({
         type = 'FogOfWar',
-        position = {-5, -1, 6},
+        position = {-5, -1, 4},
         scale = {1, 1, 1}
     })
 
@@ -60,7 +80,7 @@ end
 function createDrawFourButton()
     draw_four_button = spawnObject({
         type = 'FogOfWar',
-        position = {-5, -1, 4},
+        position = {-5, -1, 2},
         scale = {1, 1, 1}
     })
 
@@ -111,14 +131,19 @@ function createRestartButton()
         color = {r=0, g=1, b=1},
         font_color = {r=1, g=1, b=1},
         function_owner = nil,
-        label = 'Ещё одну!',
+        label = 'Новая катка!',
         position = {0, 0, 0, 0},
         rotation = {0, 180, 0},
-        width = 2000,
+        width = 2400,
         height = 1000,
         font_size = 400,
         tooltip = 'Рестарт игру'
     })
+end
+
+function drawOne(owner, click_color)
+    uno_deck.deal(1, click_color)
+    broadcastToAll(Player[click_color].steam_name .. " поднял 1 карту.")
 end
 
 function drawTwo(owner, click_color)
@@ -202,14 +227,16 @@ function startGame()
     -- Shuffle the buttons around
     start_button.setPosition({0, 100, 6, 0})
     restart_button.setPosition({0, 1, 6, 0})
-    draw_two_button.setPosition({-5, 1, 6})
-    draw_four_button.setPosition({-5, 1, 4})
+    draw_one_button.setPosition({-5, 1, 6})
+    draw_two_button.setPosition({-5, 1, 4})
+    draw_four_button.setPosition({-5, 1, 2})
 
     uno_deck = getObjectFromGUID(UNO_DECK_GUID)
     deck_zone = getObjectFromGUID(DECK_ZONE_GUID)
 
     printGameStartMessage()
-    uno_deck.deal(7)
+    Wait.time(function() uno_deck.shuffle() end, 1)
+    Wait.time(function() uno_deck.deal(7) end, 1)
 end
 
 function printWelcomeMessage()
@@ -245,9 +272,9 @@ function printPlayerGreetings()
         [5] = "Не ожидали увидеть тебя здесь, привет ",
     }
     players = Player.getPlayers()
-    greeting_random_ind = math.random(1, 5)
 
     for player_ind, player_val in pairs(players) do
+        greeting_random_ind = math.random(1, 5)
         broadcastToAll(random_greetings[greeting_random_ind] .. player_val.steam_name .. "!",  {r=0, g=1, b=0.5})
     end
 end
